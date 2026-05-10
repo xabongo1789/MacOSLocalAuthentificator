@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDisplayName</key>
+    <string>Local Authenticator</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Utilisé uniquement pour scanner les QR codes TOTP avec la webcam.</string>
+</dict>
+</plist>
