@@ -76,12 +76,17 @@ enum AccountValidator {
             throw AccountValidationError.invalidPeriod
         }
 
+        let decodedSecret: Data
         do {
-            _ = try Base32.decode(secret)
+            decodedSecret = try Base32.decode(secret)
         } catch Base32Error.emptySecret {
             throw AccountValidationError.missingSecret
         } catch {
             throw AccountValidationError.invalidSecret(error.localizedDescription)
+        }
+
+        guard !decodedSecret.isEmpty else {
+            throw AccountValidationError.invalidSecret(Base32Error.emptySecret.localizedDescription)
         }
 
         return OTPAccount(

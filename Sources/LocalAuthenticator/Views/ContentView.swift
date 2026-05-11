@@ -5,6 +5,7 @@ struct ContentView: View {
     @State private var showingAddAccount = false
     @State private var searchText = ""
     @State private var selectedAccountID: OTPAccount.ID?
+    @State private var accountPendingDeletion: OTPAccount?
 
     private var filteredAccounts: [OTPAccount] {
         guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -32,9 +33,7 @@ struct ContentView: View {
         } detail: {
             if let selectedAccount {
                 AccountDetailView(account: selectedAccount) {
-                    accountStore.delete(selectedAccount)
-                    selectedAccountID = nil
-                    selectFallbackAccount()
+                    deleteAccount(selectedAccount)
                 }
                 .id(selectedAccount.id)
             } else {
@@ -54,6 +53,21 @@ struct ContentView: View {
             AddAccountView()
                 .environmentObject(accountStore)
                 .frame(width: 680, height: 640)
+        }
+        .alert("Supprimer ce compte ?", isPresented: deleteConfirmationBinding) {
+            Button("Annuler", role: .cancel) {
+                accountPendingDeletion = nil
+            }
+            Button("Supprimer", role: .destructive) {
+                guard let account = accountPendingDeletion else {
+                    return
+                }
+
+                deleteAccount(account)
+                accountPendingDeletion = nil
+            }
+        } message: {
+            Text("Le secret sera supprimé du Keychain local.")
         }
     }
 
@@ -109,7 +123,7 @@ struct ContentView: View {
                             .tag(account.id)
                             .contextMenu {
                                 Button(role: .destructive) {
-                                    accountStore.delete(account)
+                                    accountPendingDeletion = account
                                 } label: {
                                     Label("Supprimer", systemImage: "trash")
                                 }
@@ -124,6 +138,26 @@ struct ContentView: View {
                     .padding(12)
             }
         }
+    }
+
+    private var deleteConfirmationBinding: Binding<Bool> {
+        Binding {
+            accountPendingDeletion != nil
+        } set: { isPresented in
+            if !isPresented {
+                accountPendingDeletion = nil
+            }
+        }
+    }
+
+    private func deleteAccount(_ account: OTPAccount) {
+        accountStore.delete(account)
+
+        if selectedAccountID == account.id {
+            selectedAccountID = nil
+        }
+
+        selectFallbackAccount()
     }
 
     private func selectFallbackAccount() {

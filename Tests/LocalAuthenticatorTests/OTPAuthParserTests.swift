@@ -52,4 +52,25 @@ final class OTPAuthParserTests: XCTestCase {
             }
         }
     }
+
+    func testRejectsUnsupportedAlgorithm() {
+        let uri = "otpauth://totp/Example:alice?secret=JBSWY3DPEHPK3PXP&algorithm=MD5"
+
+        XCTAssertThrowsError(try OTPAuthParser.parse(uri)) { error in
+            guard case OTPAuthParserError.unsupportedAlgorithm(let algorithm) = error else {
+                return XCTFail("Expected unsupportedAlgorithm, got \(error)")
+            }
+
+            XCTAssertEqual(algorithm, "MD5")
+        }
+    }
+
+    func testDoesNotDoubleDecodePercentEncodedValues() throws {
+        let uri = "otpauth://totp/Example%2520Corp:alice?secret=JBSWY3DPEHPK3PXP&issuer=Example%2520Corp"
+
+        let account = try OTPAuthParser.parse(uri)
+
+        XCTAssertEqual(account.issuer, "Example%20Corp")
+        XCTAssertEqual(account.accountName, "alice")
+    }
 }

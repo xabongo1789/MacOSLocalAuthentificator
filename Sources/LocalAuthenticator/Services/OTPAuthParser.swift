@@ -4,6 +4,7 @@ enum OTPAuthParserError: Error, LocalizedError {
     case invalidURL
     case unsupportedType
     case missingSecret
+    case unsupportedAlgorithm(String)
 
     var errorDescription: String? {
         switch self {
@@ -13,6 +14,8 @@ enum OTPAuthParserError: Error, LocalizedError {
             return "Seuls les comptes otpauth://totp sont supportés pour l'instant."
         case .missingSecret:
             return "Le QR code ne contient pas de secret."
+        case .unsupportedAlgorithm(let algorithm):
+            return "L'algorithme TOTP \(algorithm) n'est pas supporté."
         }
     }
 }
@@ -46,15 +49,23 @@ struct OTPAuthParser {
 
         let label = url.path
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            .removingPercentEncoding ?? ""
 
         let labelParts = label.split(separator: ":", maxSplits: 1).map(String.init)
-        let issuerFromQuery = queryValue("issuer")?.removingPercentEncoding
+        let issuerFromQuery = queryValue("issuer")
         let issuer = issuerFromQuery ?? labelParts.first ?? "Sans nom"
         let accountName = labelParts.count > 1 ? labelParts[1] : label
 
-        let algorithmRaw = queryValue("algorithm")?.uppercased() ?? OTPAlgorithm.sha1.rawValue
-        let algorithm = OTPAlgorithm(rawValue: algorithmRaw) ?? .sha1
+        let algorithm: OTPAlgorithm
+        if let algorithmRaw = queryValue("algorithm")?.uppercased() {
+            guard let parsedAlgorithm = OTPAlgorithm(rawValue: algorithmRaw) else {
+                throw OTPAuthParserError.unsupportedAlgorithm(algorithmRaw)
+            }
+
+            algorithm = parsedAlgorithm
+        } else {
+            algorithm = .sha1
+        }
+
         let digits = Int(queryValue("digits") ?? "6") ?? 6
         let period = Int(queryValue("period") ?? "30") ?? 30
 

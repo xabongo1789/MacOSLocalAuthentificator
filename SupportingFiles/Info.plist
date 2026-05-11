@@ -6,5 +6,7 @@
     <string>Local Authenticator</string>
     <key>NSCameraUsageDescription</key>
     <string>Utilisé uniquement pour scanner les QR codes TOTP avec la webcam.</string>
+    <key>NSFaceIDUsageDescription</key>
+    <string>Utilisé uniquement pour déverrouiller l’accès local aux codes TOTP.</string>
 </dict>
 </plist>

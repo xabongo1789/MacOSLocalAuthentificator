@@ -3,6 +3,7 @@ import Foundation
 enum Base32Error: Error, LocalizedError {
     case invalidCharacter(Character)
     case emptySecret
+    case invalidPadding
 
     var errorDescription: String? {
         switch self {
@@ -10,6 +11,8 @@ enum Base32Error: Error, LocalizedError {
             return "Caractère Base32 invalide : \(character)"
         case .emptySecret:
             return "La clé secrète est vide."
+        case .invalidPadding:
+            return "La fin de la clé Base32 est invalide."
         }
     }
 }
@@ -31,6 +34,10 @@ enum Base32 {
             throw Base32Error.emptySecret
         }
 
+        guard ![1, 3, 6].contains(cleaned.count % 8) else {
+            throw Base32Error.invalidPadding
+        }
+
         var buffer = 0
         var bitsLeft = 0
         var result = Data()
@@ -49,6 +56,14 @@ enum Base32 {
                 bitsLeft -= 8
                 buffer &= (1 << bitsLeft) - 1
             }
+        }
+
+        guard bitsLeft == 0 || buffer == 0 else {
+            throw Base32Error.invalidPadding
+        }
+
+        guard !result.isEmpty else {
+            throw Base32Error.emptySecret
         }
 
         return result

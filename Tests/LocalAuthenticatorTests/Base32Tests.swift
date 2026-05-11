@@ -33,4 +33,20 @@ final class Base32Tests: XCTestCase {
             XCTAssertEqual(character, "0")
         }
     }
+
+    func testRejectsInvalidFinalQuantumLength() {
+        XCTAssertThrowsError(try Base32.decode("A")) { error in
+            guard case Base32Error.invalidPadding = error else {
+                return XCTFail("Expected invalidPadding, got \(error)")
+            }
+        }
+    }
+
+    func testRejectsNonZeroTrailingBits() {
+        XCTAssertThrowsError(try Base32.decode("MZ")) { error in
+            guard case Base32Error.invalidPadding = error else {
+                return XCTFail("Expected invalidPadding, got \(error)")
+            }
+        }
+    }
 }
