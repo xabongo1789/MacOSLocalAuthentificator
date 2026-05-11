@@ -24,6 +24,15 @@ final class OTPAuthParserTests: XCTestCase {
         XCTAssertEqual(account.accountName, "alice")
     }
 
+    func testTrimsWhitespaceAroundScannedURI() throws {
+        let uri = "\n otpauth://totp/Example:alice?secret=JBSWY3DPEHPK3PXP&issuer=Example \n"
+
+        let account = try OTPAuthParser.parse(uri)
+
+        XCTAssertEqual(account.issuer, "Example")
+        XCTAssertEqual(account.accountName, "alice")
+    }
+
     func testUsesIssuerAndAccountFromLabel() throws {
         let uri = "otpauth://totp/LabelIssuer:bob@example.com?secret=JBSWY3DPEHPK3PXP"
 

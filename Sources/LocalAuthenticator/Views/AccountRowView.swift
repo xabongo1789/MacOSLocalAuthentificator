@@ -24,7 +24,8 @@ struct AccountRowView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 6)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 8)
         .contentShape(Rectangle())
     }
 }
@@ -41,14 +42,44 @@ struct AccountAvatarView: View {
         return letters.isEmpty ? "?" : String(letters).uppercased()
     }
 
+    private var seedColor: Color {
+        let seed = account.issuer.unicodeScalars.reduce(0) { partialResult, scalar in
+            (partialResult + Int(scalar.value)) % 360
+        }
+
+        return Color(hue: Double(seed) / 360, saturation: 0.62, brightness: 0.92)
+    }
+
     var body: some View {
-        Circle()
-            .fill(Color.accentColor.opacity(0.16))
-            .frame(width: size, height: size)
-            .overlay(
-                Text(initials)
-                    .font(.system(size: max(12, size * 0.36), weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-            )
+        ZStack {
+            Circle()
+                .fill(.thinMaterial)
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            seedColor.opacity(0.44),
+                            seedColor.opacity(0.16)
+                        ],
+                        center: .topLeading,
+                        startRadius: 2,
+                        endRadius: size
+                    )
+                )
+
+            Circle()
+                .strokeBorder(.white.opacity(0.42), lineWidth: 1)
+
+            Circle()
+                .strokeBorder(seedColor.opacity(0.22), lineWidth: 2)
+
+            Text(initials)
+                .font(.system(size: max(12, size * 0.36), weight: .semibold))
+                .foregroundStyle(.primary)
+        }
+        .frame(width: size, height: size)
+        .shadow(color: seedColor.opacity(0.18), radius: size * 0.18, x: 0, y: size * 0.08)
+        .accessibilityHidden(true)
     }
 }

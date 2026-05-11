@@ -10,47 +10,55 @@ struct LaunchAuthenticationView: View {
     @State private var didStartAuthentication = false
 
     var body: some View {
-        VStack(spacing: 22) {
-            Image(systemName: "lock.shield")
-                .font(.system(size: 58))
-                .foregroundStyle(.secondary)
+        ZStack {
+            LiquidGlassBackdrop()
 
-            VStack(spacing: 8) {
-                Text("Local Authenticator")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+            VStack(spacing: 22) {
+                Image(systemName: "lock.shield")
+                    .font(.system(size: 58))
+                    .foregroundStyle(.primary.opacity(0.78))
+                    .frame(width: 96, height: 96)
+                    .liquidGlassPanel(cornerRadius: 32, material: .thinMaterial, shadowRadius: 14, shadowOpacity: 0.10)
 
-                Text("Authentification requise")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
+                VStack(spacing: 8) {
+                    Text("Local Authenticator")
+                        .font(.title2)
+                        .fontWeight(.semibold)
 
-            VStack(spacing: 12) {
-                if isAuthenticating {
-                    ProgressView("Vérification…")
-                        .controlSize(.small)
-                } else {
-                    Button {
-                        authenticate()
-                    } label: {
-                        Label("Déverrouiller", systemImage: "touchid")
+                    Text("Authentification requise")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(spacing: 12) {
+                    if isAuthenticating {
+                        ProgressView("Vérification…")
+                            .controlSize(.small)
+                    } else {
+                        Button {
+                            authenticate()
+                        } label: {
+                            Label("Déverrouiller", systemImage: "touchid")
+                        }
+                        .buttonStyle(.liquidGlassProminent)
+                        .controlSize(.large)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                }
 
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 360)
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 360)
+                    }
                 }
+                .frame(minHeight: 78)
             }
-            .frame(minHeight: 78)
+            .padding(34)
+            .frame(maxWidth: 440)
+            .liquidGlassPanel(cornerRadius: 34, material: .regularMaterial, shadowRadius: 24, shadowOpacity: 0.14)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .textBackgroundColor))
         .onAppear(perform: startAuthenticationOnce)
         .onChange(of: isSceneActive) { isActive in
             guard isActive else {

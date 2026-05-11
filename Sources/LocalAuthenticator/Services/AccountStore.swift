@@ -61,12 +61,7 @@ final class AccountStore: ObservableObject {
             }
         }
 
-        accounts = loadedAccounts.sorted { lhs, rhs in
-            if lhs.issuer == rhs.issuer {
-                return lhs.accountName.localizedCaseInsensitiveCompare(rhs.accountName) == .orderedAscending
-            }
-            return lhs.issuer.localizedCaseInsensitiveCompare(rhs.issuer) == .orderedAscending
-        }
+        accounts = sortedAccounts(loadedAccounts)
 
         if retainedIDs != ids {
             saveIDs(retainedIDs)
@@ -89,8 +84,8 @@ final class AccountStore: ObservableObject {
                 ids.append(validatedAccount.id)
             }
             saveIDs(ids)
+            accounts = sortedAccounts(accounts.filter { $0.id != validatedAccount.id } + [validatedAccount])
             lastError = nil
-            load()
         } catch {
             lastError = error.localizedDescription
         }
@@ -120,6 +115,15 @@ final class AccountStore: ObservableObject {
 
     private func saveIDs(_ ids: [UUID]) {
         userDefaults.set(ids.map(\.uuidString), forKey: accountIDsKey)
+    }
+
+    private func sortedAccounts(_ accounts: [OTPAccount]) -> [OTPAccount] {
+        accounts.sorted { lhs, rhs in
+            if lhs.issuer == rhs.issuer {
+                return lhs.accountName.localizedCaseInsensitiveCompare(rhs.accountName) == .orderedAscending
+            }
+            return lhs.issuer.localizedCaseInsensitiveCompare(rhs.issuer) == .orderedAscending
+        }
     }
 
     private func isMissingKeychainItem(_ error: Error) -> Bool {

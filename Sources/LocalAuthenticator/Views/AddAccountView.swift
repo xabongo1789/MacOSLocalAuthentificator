@@ -24,49 +24,54 @@ struct AddAccountView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Ajouter un compte")
-                        .font(.title2)
-                        .fontWeight(.semibold)
+        ZStack {
+            LiquidGlassBackdrop()
 
-                    Text("Scannez une URI otpauth://totp ou saisissez la clé manuellement.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 20) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Ajouter un compte")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+
+                        Text("Scannez une URI otpauth://totp ou saisissez la clé manuellement.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .help("Fermer")
+                    .keyboardShortcut(.cancelAction)
+                    .buttonStyle(.liquidGlassIcon)
+                }
+
+                Picker("Mode", selection: $selectedMode) {
+                    ForEach(AddMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                if selectedMode == .qr {
+                    qrPane
+                } else {
+                    manualPane
+                }
+
+                if let localError {
+                    InlineErrorView(message: localError)
                 }
 
                 Spacer()
-
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                }
-                .help("Fermer")
-                .keyboardShortcut(.cancelAction)
             }
-
-            Picker("Mode", selection: $selectedMode) {
-                ForEach(AddMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            if selectedMode == .qr {
-                qrPane
-            } else {
-                manualPane
-            }
-
-            if let localError {
-                InlineErrorView(message: localError)
-            }
-
-            Spacer()
+            .padding(24)
         }
-        .padding(24)
         .onChange(of: selectedMode) { _ in
             localError = nil
         }
@@ -79,11 +84,12 @@ struct AddAccountView: View {
             }
             .id(scannerResetID)
             .frame(height: 360)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(.secondary.opacity(0.25), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(.white.opacity(0.32), lineWidth: 1)
             )
+            .shadow(color: .black.opacity(0.16), radius: 18, x: 0, y: 8)
 
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "camera.viewfinder")
@@ -160,6 +166,8 @@ struct AddAccountView: View {
                 }
             }
             .labeledContentStyle(.manualForm)
+            .padding(18)
+            .liquidGlassPanel(cornerRadius: 22, material: .thinMaterial, shadowRadius: 12, shadowOpacity: 0.08)
 
             if let previewAccount = manualPreviewAccount {
                 ManualPreviewView(account: previewAccount)
@@ -173,6 +181,7 @@ struct AddAccountView: View {
                 Button("Annuler") {
                     dismiss()
                 }
+                .buttonStyle(.liquidGlass)
 
                 Button {
                     addManualAccount()
@@ -181,6 +190,7 @@ struct AddAccountView: View {
                 }
                 .disabled(manualPreviewAccount == nil)
                 .keyboardShortcut(.defaultAction)
+                .buttonStyle(.liquidGlassProminent)
             }
         }
     }
@@ -236,20 +246,21 @@ struct AddAccountView: View {
         }
     }
 
-    private func handleScannedCode(_ rawCode: String) {
+    private func handleScannedCode(_ rawCode: String) -> Bool {
         do {
             let account = try AccountValidator.parseOTPAuthURI(rawCode)
             accountStore.add(account)
 
             if accountStore.lastError == nil {
                 dismiss()
+                return true
             } else {
                 localError = accountStore.lastError
-                scannerResetID = UUID()
+                return false
             }
         } catch {
             localError = error.localizedDescription
-            scannerResetID = UUID()
+            return false
         }
     }
 }
@@ -277,9 +288,9 @@ private struct ManualPreviewView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(12)
-        .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(.green.opacity(0.22), lineWidth: 1)
         )
     }
@@ -300,7 +311,11 @@ private struct InlineErrorView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(.red.opacity(0.18), lineWidth: 1)
+        }
     }
 }
 

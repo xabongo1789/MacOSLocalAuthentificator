@@ -10,7 +10,7 @@ enum CameraAuthorizationState: Equatable {
 }
 
 struct QRScannerView: View {
-    var onCode: (String) -> Void
+    var onCode: (String) -> Bool
 
     @State private var authorizationState: CameraAuthorizationState = .checking
     @State private var scannerID = UUID()
@@ -106,18 +106,21 @@ struct QRScannerView: View {
         authorizationState = .authorized
     }
 
-    private func handleCode(_ rawValue: String) {
+    private func handleCode(_ rawValue: String) -> Bool {
         guard !didHandleCode else {
-            return
+            return true
         }
 
-        didHandleCode = true
-        onCode(rawValue)
+        let accepted = onCode(rawValue)
+        if accepted {
+            didHandleCode = true
+        }
+        return accepted
     }
 }
 
 private struct CameraPreviewRepresentable: NSViewRepresentable {
-    var onCode: (String) -> Void
+    var onCode: (String) -> Bool
     var onUnavailable: (String) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -140,12 +143,13 @@ private struct CameraPreviewRepresentable: NSViewRepresentable {
     final class Coordinator: NSObject, AVCaptureMetadataOutputObjectsDelegate {
         private let session = AVCaptureSession()
         private let sessionQueue = DispatchQueue(label: "LocalAuthenticator.QRScanner.session")
-        private let onCode: (String) -> Void
+        private let onCode: (String) -> Bool
         private let onUnavailable: (String) -> Void
-        private var didFindCode = false
+        private var didFinishScan = false
+        private var isHandlingCode = false
         private var didConfigure = false
 
-        init(onCode: @escaping (String) -> Void, onUnavailable: @escaping (String) -> Void) {
+        init(onCode: @escaping (String) -> Bool, onUnavailable: @escaping (String) -> Void) {
             self.onCode = onCode
             self.onUnavailable = onUnavailable
         }
@@ -170,7 +174,7 @@ private struct CameraPreviewRepresentable: NSViewRepresentable {
                 return
             }
 
-            guard let device = AVCaptureDevice.default(for: .video) else {
+            guard let device = preferredVideoDevice() else {
                 notifyUnavailable("Aucune caméra n'a été détectée sur ce Mac.")
                 return
             }
@@ -183,12 +187,22 @@ private struct CameraPreviewRepresentable: NSViewRepresentable {
                 return
             }
 
+            session.beginConfiguration()
+
+            if session.canSetSessionPreset(.hd1280x720) {
+                session.sessionPreset = .hd1280x720
+            } else if session.canSetSessionPreset(.high) {
+                session.sessionPreset = .high
+            }
+
+            configureDeviceForScanning(device)
+
             guard session.canAddInput(input) else {
+                session.commitConfiguration()
                 notifyUnavailable("La caméra ne peut pas être utilisée par cette session.")
                 return
             }
 
-            session.beginConfiguration()
             session.addInput(input)
 
             let output = AVCaptureMetadataOutput()
@@ -200,6 +214,13 @@ private struct CameraPreviewRepresentable: NSViewRepresentable {
 
             session.addOutput(output)
             output.setMetadataObjectsDelegate(self, queue: .main)
+
+            guard output.availableMetadataObjectTypes.contains(.qr) else {
+                session.commitConfiguration()
+                notifyUnavailable("Cette caméra ne prend pas en charge la détection de QR codes.")
+                return
+            }
+
             output.metadataObjectTypes = [.qr]
             session.commitConfiguration()
 
@@ -210,6 +231,48 @@ private struct CameraPreviewRepresentable: NSViewRepresentable {
             }
 
             session.startRunning()
+        }
+
+        private func preferredVideoDevice() -> AVCaptureDevice? {
+            let discovery = AVCaptureDevice.DiscoverySession(
+                deviceTypes: [.builtInWideAngleCamera, .externalUnknown],
+                mediaType: .video,
+                position: .unspecified
+            )
+
+            return discovery.devices.first(where: { $0.position == .front })
+                ?? discovery.devices.first
+                ?? AVCaptureDevice.default(for: .video)
+        }
+
+        private func configureDeviceForScanning(_ device: AVCaptureDevice) {
+            do {
+                try device.lockForConfiguration()
+
+                if device.isFocusModeSupported(.continuousAutoFocus) {
+                    device.focusMode = .continuousAutoFocus
+                } else if device.isFocusModeSupported(.autoFocus) {
+                    device.focusMode = .autoFocus
+                }
+
+                if device.isExposureModeSupported(.continuousAutoExposure) {
+                    device.exposureMode = .continuousAutoExposure
+                }
+
+                if device.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) {
+                    device.whiteBalanceMode = .continuousAutoWhiteBalance
+                }
+
+                #if os(iOS) || os(tvOS) || targetEnvironment(macCatalyst)
+                if device.isSmoothAutoFocusSupported {
+                    device.isSmoothAutoFocusEnabled = true
+                }
+                #endif
+
+                device.unlockForConfiguration()
+            } catch {
+                return
+            }
         }
 
         func stop() {
@@ -233,7 +296,7 @@ private struct CameraPreviewRepresentable: NSViewRepresentable {
             didOutput metadataObjects: [AVMetadataObject],
             from connection: AVCaptureConnection
         ) {
-            guard !didFindCode else { return }
+            guard !didFinishScan, !isHandlingCode else { return }
 
             guard
                 let object = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
@@ -243,9 +306,21 @@ private struct CameraPreviewRepresentable: NSViewRepresentable {
                 return
             }
 
-            didFindCode = true
-            stop()
-            onCode(value)
+            isHandlingCode = true
+            let accepted = onCode(value)
+
+            if accepted {
+                didFinishScan = true
+                stop()
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
+                    guard let self, !self.didFinishScan else {
+                        return
+                    }
+
+                    self.isHandlingCode = false
+                }
+            }
         }
     }
 }
@@ -274,7 +349,11 @@ private struct QRScannerOverlayView: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(.black.opacity(0.55), in: Capsule())
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .overlay {
+                            Capsule()
+                                .strokeBorder(.white.opacity(0.22), lineWidth: 1)
+                        }
                         .padding(.bottom, 18)
                 }
             }
@@ -307,7 +386,7 @@ private struct ScannerStatusView: View {
 
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.liquidGlassProminent)
                     .padding(.top, 4)
             }
         }

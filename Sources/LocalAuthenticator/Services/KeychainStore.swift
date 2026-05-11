@@ -12,16 +12,24 @@ enum KeychainStoreError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .saveFailed(let status):
-            return "Échec de sauvegarde Keychain : \(status)"
+            return "Échec de sauvegarde Keychain : \(Self.statusDescription(status))"
         case .readFailed(let status):
-            return "Échec de lecture Keychain : \(status)"
+            return "Échec de lecture Keychain : \(Self.statusDescription(status))"
         case .deleteFailed(let status):
-            return "Échec de suppression Keychain : \(status)"
+            return "Échec de suppression Keychain : \(Self.statusDescription(status))"
         case .decodeFailed:
             return "Impossible de décoder les données Keychain."
         case .accessControlCreationFailed(let message):
             return "Impossible de protéger l'élément Keychain : \(message)"
         }
+    }
+
+    private static func statusDescription(_ status: OSStatus) -> String {
+        guard let message = SecCopyErrorMessageString(status, nil) as String? else {
+            return "\(status)"
+        }
+
+        return "\(message) (\(status))"
     }
 }
 
@@ -38,7 +46,34 @@ final class KeychainStore: AccountSecureStoring {
     func save(_ account: OTPAccount) throws {
         let data = try JSONEncoder().encode(account)
         let key = account.id.uuidString
+        let accessControl = try makeAccessControl()
 
+        let item: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+            kSecAttrAccessControl as String: accessControl,
+            kSecValueData as String: data,
+            kSecAttrSynchronizable as String: kCFBooleanFalse as Any
+        ]
+
+        let addStatus = SecItemAdd(item as CFDictionary, nil)
+        if addStatus == errSecSuccess {
+            return
+        }
+
+        guard addStatus == errSecDuplicateItem else {
+            throw KeychainStoreError.saveFailed(addStatus)
+        }
+
+        try updateExistingItem(key: key, data: data)
+    }
+
+    private func updateExistingItem(
+        key: String,
+        data: Data,
+        accessControl: SecAccessControl? = nil
+    ) throws {
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -51,31 +86,14 @@ final class KeychainStore: AccountSecureStoring {
             query[kSecUseAuthenticationContext as String] = authenticationContext
         }
 
-        let accessControl = try makeAccessControl()
-        let attributes: [String: Any] = [
-            kSecAttrAccessControl as String: accessControl,
+        var attributes: [String: Any] = [
             kSecValueData as String: data
         ]
-
-        let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if updateStatus == errSecSuccess {
-            return
+        if let accessControl {
+            attributes[kSecAttrAccessControl as String] = accessControl
         }
 
-        guard updateStatus == errSecItemNotFound else {
-            throw KeychainStoreError.saveFailed(updateStatus)
-        }
-
-        let item: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecAttrAccessControl as String: accessControl,
-            kSecValueData as String: data,
-            kSecAttrSynchronizable as String: kCFBooleanFalse as Any
-        ]
-
-        let status = SecItemAdd(item as CFDictionary, nil)
+        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
         guard status == errSecSuccess else {
             throw KeychainStoreError.saveFailed(status)
         }
@@ -114,7 +132,12 @@ final class KeychainStore: AccountSecureStoring {
             return
         }
 
-        try save(account)
+        let data = try JSONEncoder().encode(account)
+        try updateExistingItem(
+            key: account.id.uuidString,
+            data: data,
+            accessControl: makeAccessControl()
+        )
     }
 
     func delete(id: UUID) throws {

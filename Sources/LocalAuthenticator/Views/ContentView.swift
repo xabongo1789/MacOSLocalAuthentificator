@@ -76,7 +76,8 @@ struct ContentView: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Local Authenticator")
-                        .font(.headline)
+                        .font(.title3)
+                        .fontWeight(.semibold)
 
                     Text("\(accountStore.accounts.count) compte\(accountStore.accounts.count > 1 ? "s" : "")")
                         .font(.caption)
@@ -91,9 +92,10 @@ struct ContentView: View {
                     Image(systemName: "plus")
                 }
                 .help("Ajouter un compte")
+                .buttonStyle(.liquidGlassIcon)
             }
-            .padding([.horizontal, .top], 16)
-            .padding(.bottom, 12)
+            .padding([.horizontal, .top], 18)
+            .padding(.bottom, 14)
 
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
@@ -104,11 +106,14 @@ struct ContentView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
-            .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
-            .padding(.horizontal, 16)
-            .padding(.bottom, 10)
+            .liquidGlassCapsule(material: .thinMaterial)
+            .padding(.horizontal, 18)
+            .padding(.bottom, 12)
 
-            Divider()
+            Rectangle()
+                .fill(.white.opacity(0.22))
+                .frame(height: 1)
+                .padding(.horizontal, 18)
 
             if accountStore.accounts.isEmpty {
                 SidebarEmptyStateView {
@@ -128,15 +133,21 @@ struct ContentView: View {
                                     Label("Supprimer", systemImage: "trash")
                                 }
                             }
+                            .listRowBackground(Color.clear)
                     }
                 }
                 .listStyle(.sidebar)
+                .scrollContentBackground(.hidden)
+                .background(.clear)
             }
 
             if let error = accountStore.lastError {
                 ErrorBannerView(message: error)
                     .padding(12)
             }
+        }
+        .background {
+            LiquidGlassBackdrop()
         }
     }
 
@@ -182,74 +193,80 @@ private struct AccountDetailView: View {
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 16) {
-                AccountAvatarView(account: account, size: 54)
+        ZStack {
+            LiquidGlassBackdrop()
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(account.issuer)
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                        .lineLimit(1)
+            VStack(spacing: 20) {
+                HStack(alignment: .center, spacing: 16) {
+                    AccountAvatarView(account: account, size: 56)
 
-                    Text(account.accountName)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(account.issuer)
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .lineLimit(1)
+
+                        Text(account.accountName)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        copyCode()
+                    } label: {
+                        Label(copied ? "Copié" : "Copier", systemImage: copied ? "checkmark" : "doc.on.doc")
+                    }
+                    .disabled(generationError != nil)
+                    .buttonStyle(.liquidGlassProminent)
+
+                    Button(role: .destructive) {
+                        showingDeleteConfirmation = true
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .help("Supprimer ce compte")
+                    .buttonStyle(.liquidGlassIcon)
                 }
+                .padding(20)
+                .liquidGlassPanel(cornerRadius: 24, material: .thinMaterial, shadowRadius: 12, shadowOpacity: 0.10)
 
-                Spacer()
+                VStack(spacing: 26) {
+                    VStack(spacing: 10) {
+                        Text(formattedCode)
+                            .font(.system(size: 62, weight: .semibold, design: .monospaced))
+                            .textSelection(.enabled)
+                            .minimumScaleFactor(0.55)
+                            .lineLimit(1)
 
-                Button {
-                    copyCode()
-                } label: {
-                    Label(copied ? "Copié" : "Copier", systemImage: copied ? "checkmark" : "doc.on.doc")
-                }
-                .disabled(generationError != nil)
+                        if let generationError {
+                            Text(generationError)
+                                .font(.callout)
+                                .foregroundStyle(.red)
+                        } else {
+                            Text("Code valide encore \(remaining) s")
+                                .font(.callout)
+                                .foregroundStyle(remaining <= 5 ? .red : .secondary)
+                        }
+                    }
 
-                Button(role: .destructive) {
-                    showingDeleteConfirmation = true
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .help("Supprimer ce compte")
-            }
-            .padding(28)
+                    ProgressView(value: Double(remaining), total: Double(max(account.period, 1)))
+                        .tint(remaining <= 5 ? .red : .accentColor)
+                        .frame(maxWidth: 420)
 
-            Divider()
-
-            VStack(spacing: 26) {
-                VStack(spacing: 10) {
-                    Text(formattedCode)
-                        .font(.system(size: 62, weight: .semibold, design: .monospaced))
-                        .textSelection(.enabled)
-                        .minimumScaleFactor(0.55)
-                        .lineLimit(1)
-
-                    if let generationError {
-                        Text(generationError)
-                            .font(.callout)
-                            .foregroundStyle(.red)
-                    } else {
-                        Text("Code valide encore \(remaining) s")
-                            .font(.callout)
-                            .foregroundStyle(remaining <= 5 ? .red : .secondary)
+                    HStack(spacing: 12) {
+                        DetailBadgeView(title: "Algorithme", value: account.algorithm.rawValue)
+                        DetailBadgeView(title: "Chiffres", value: "\(account.digits)")
+                        DetailBadgeView(title: "Période", value: "\(account.period) s")
                     }
                 }
-
-                ProgressView(value: Double(remaining), total: Double(max(account.period, 1)))
-                    .tint(remaining <= 5 ? .red : .accentColor)
-                    .frame(maxWidth: 420)
-
-                HStack(spacing: 12) {
-                    DetailBadgeView(title: "Algorithme", value: account.algorithm.rawValue)
-                    DetailBadgeView(title: "Chiffres", value: "\(account.digits)")
-                    DetailBadgeView(title: "Période", value: "\(account.period) s")
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(32)
+                .liquidGlassPanel(cornerRadius: 30, material: .regularMaterial, shadowRadius: 22, shadowOpacity: 0.13)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(32)
+            .padding(22)
         }
-        .background(Color(nsColor: .textBackgroundColor))
         .onAppear(perform: refresh)
         .onReceive(timer) { _ in
             refresh()
@@ -316,7 +333,7 @@ private struct DetailBadgeView: View {
                 .font(.headline)
         }
         .frame(width: 110, height: 62)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .liquidGlassPanel(cornerRadius: 16, material: .thinMaterial, shadowRadius: 8, shadowOpacity: 0.06)
     }
 }
 
@@ -343,7 +360,7 @@ private struct SidebarEmptyStateView: View {
             } label: {
                 Label("Ajouter", systemImage: "plus")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.liquidGlassProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
@@ -394,10 +411,13 @@ private struct EmptyAccountDetailView: View {
             } label: {
                 Label("Ajouter un compte", systemImage: "plus")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.liquidGlassProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(32)
+        .background {
+            LiquidGlassBackdrop()
+        }
     }
 }
 
@@ -416,6 +436,10 @@ private struct ErrorBannerView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(.red.opacity(0.18), lineWidth: 1)
+        }
     }
 }

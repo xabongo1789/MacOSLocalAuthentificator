@@ -4,6 +4,26 @@ import XCTest
 
 @MainActor
 final class AccountStoreTests: XCTestCase {
+    func testAddSavesAccountIDAndUpdatesListWithoutImmediateReload() throws {
+        let account = OTPAccount(
+            issuer: "Example",
+            accountName: "alice@example.com",
+            secretBase32: "jbsw y3dp-ehpk3pxp"
+        )
+        let validatedAccount = try AccountValidator.validate(account)
+        let keychain = FakeAccountSecureStore()
+        let idStore = FakeAccountIDStore()
+        let store = AccountStore(keychain: keychain, userDefaults: idStore)
+
+        store.add(account)
+
+        XCTAssertEqual(keychain.savedAccounts, [validatedAccount])
+        XCTAssertEqual(keychain.migratedAccounts, [])
+        XCTAssertEqual(store.accounts, [validatedAccount])
+        XCTAssertEqual(idStore.strings, [validatedAccount.id.uuidString])
+        XCTAssertNil(store.lastError)
+    }
+
     func testLoadRemovesOnlyConfirmedMissingKeychainItems() {
         let validID = UUID()
         let transientFailureID = UUID()

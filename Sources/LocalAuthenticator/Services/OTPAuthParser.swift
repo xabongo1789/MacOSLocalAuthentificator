@@ -28,8 +28,10 @@ enum OTPAuthParserError: Error, LocalizedError {
 
 struct OTPAuthParser {
     static func parse(_ rawValue: String) throws -> OTPAccount {
+        let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+
         guard
-            let url = URL(string: rawValue),
+            let url = URL(string: trimmedValue),
             url.scheme?.lowercased() == "otpauth"
         else {
             throw OTPAuthParserError.invalidURL
