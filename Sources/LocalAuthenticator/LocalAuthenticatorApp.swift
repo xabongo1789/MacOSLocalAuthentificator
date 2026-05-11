@@ -1,23 +1,42 @@
+import AppKit
 import SwiftUI
 
 @main
 struct LocalAuthenticatorApp: App {
-    @State private var isUnlocked = false
-    @StateObject private var accountStore = AccountStore()
+    @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var unlockState = AppUnlockState()
 
     var body: some Scene {
         WindowGroup {
             Group {
-                if isUnlocked {
+                if let accountStore = unlockState.accountStore {
                     ContentView()
                         .environmentObject(accountStore)
                 } else {
-                    LaunchAuthenticationView {
-                        isUnlocked = true
+                    LaunchAuthenticationView(isSceneActive: scenePhase == .active) { authenticationContext in
+                        guard scenePhase == .active else {
+                            unlockState.lock()
+                            return
+                        }
+
+                        unlockState.unlock(authenticationContext: authenticationContext)
                     }
                 }
             }
                 .frame(minWidth: 720, minHeight: 480)
+                .onChange(of: scenePhase) { newPhase in
+                    guard newPhase != .active else {
+                        return
+                    }
+
+                    unlockState.lock()
+                }
+                .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in
+                    unlockState.lock()
+                }
+                .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in
+                    unlockState.lock()
+                }
         }
     }
 }

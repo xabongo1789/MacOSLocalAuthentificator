@@ -1,7 +1,9 @@
+import LocalAuthentication
 import SwiftUI
 
 struct LaunchAuthenticationView: View {
-    let onUnlocked: () -> Void
+    let isSceneActive: Bool
+    let onUnlocked: (LAContext) -> Void
 
     @State private var isAuthenticating = false
     @State private var errorMessage: String?
@@ -50,10 +52,17 @@ struct LaunchAuthenticationView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .textBackgroundColor))
         .onAppear(perform: startAuthenticationOnce)
+        .onChange(of: isSceneActive) { isActive in
+            guard isActive else {
+                return
+            }
+
+            startAuthenticationOnce()
+        }
     }
 
     private func startAuthenticationOnce() {
-        guard !didStartAuthentication else {
+        guard isSceneActive, !didStartAuthentication else {
             return
         }
 
@@ -62,7 +71,7 @@ struct LaunchAuthenticationView: View {
     }
 
     private func authenticate() {
-        guard !isAuthenticating else {
+        guard isSceneActive, !isAuthenticating else {
             return
         }
 
@@ -71,10 +80,10 @@ struct LaunchAuthenticationView: View {
 
         Task {
             do {
-                try await LaunchAuthenticator().authenticate()
+                let authenticationContext = try await LaunchAuthenticator().authenticate()
                 await MainActor.run {
                     isAuthenticating = false
-                    onUnlocked()
+                    onUnlocked(authenticationContext)
                 }
             } catch {
                 await MainActor.run {

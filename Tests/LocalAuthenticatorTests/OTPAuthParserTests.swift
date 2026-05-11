@@ -73,4 +73,46 @@ final class OTPAuthParserTests: XCTestCase {
         XCTAssertEqual(account.issuer, "Example%20Corp")
         XCTAssertEqual(account.accountName, "alice")
     }
+
+    func testKeepsEncodedColonInAccountName() throws {
+        let uri = "otpauth://totp/Example:alice%3Aprod?secret=JBSWY3DPEHPK3PXP"
+
+        let account = try OTPAuthParser.parse(uri)
+
+        XCTAssertEqual(account.issuer, "Example")
+        XCTAssertEqual(account.accountName, "alice:prod")
+    }
+
+    func testUsesSansNomIssuerForLabelOnlyURI() throws {
+        let uri = "otpauth://totp/alice%40example.com?secret=JBSWY3DPEHPK3PXP"
+
+        let account = try OTPAuthParser.parse(uri)
+
+        XCTAssertEqual(account.issuer, "Sans nom")
+        XCTAssertEqual(account.accountName, "alice@example.com")
+    }
+
+    func testRejectsMalformedDigits() {
+        let uri = "otpauth://totp/Example:alice?secret=JBSWY3DPEHPK3PXP&digits=abc"
+
+        XCTAssertThrowsError(try OTPAuthParser.parse(uri)) { error in
+            guard case OTPAuthParserError.invalidDigits(let value) = error else {
+                return XCTFail("Expected invalidDigits, got \(error)")
+            }
+
+            XCTAssertEqual(value, "abc")
+        }
+    }
+
+    func testRejectsMalformedPeriod() {
+        let uri = "otpauth://totp/Example:alice?secret=JBSWY3DPEHPK3PXP&period=abc"
+
+        XCTAssertThrowsError(try OTPAuthParser.parse(uri)) { error in
+            guard case OTPAuthParserError.invalidPeriod(let value) = error else {
+                return XCTFail("Expected invalidPeriod, got \(error)")
+            }
+
+            XCTAssertEqual(value, "abc")
+        }
+    }
 }

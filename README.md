@@ -12,6 +12,7 @@ Application macOS SwiftUI type Google/Microsoft Authenticator, avec stockage loc
 - Support 6, 7 ou 8 chiffres
 - Support périodes 15, 30 ou 60 secondes
 - Stockage local des secrets dans le Keychain
+- Déverrouillage au lancement via Touch ID ou mot de passe macOS
 - Copie rapide du code dans le presse-papiers
 - Suppression d'un compte via clic droit
 
@@ -39,19 +40,20 @@ Swift Package Manager est pratique pour développer vite, mais pour distribuer p
 ## Important sécurité
 
 - Les secrets ne sont pas stockés dans `UserDefaults`.
-- Les secrets sont encodés dans des objets `OTPAccount` puis stockés dans le Keychain.
-- L'app ne définit pas `kSecAttrSynchronizable` à `true`, donc elle ne demande pas la synchronisation iCloud.
+- Les secrets ne sont pas hashés : TOTP nécessite la clé originale pour recalculer les codes.
+- Les secrets sont encodés dans des objets `OTPAccount` puis stockés dans le Keychain local macOS.
+- Les items Keychain utilisent `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`.
+- L'app définit `kSecAttrSynchronizable` à `false`, donc elle ne demande pas la synchronisation iCloud.
+- Les comptes sont chargés uniquement après l'authentification locale au lancement.
+- Après copie, le code TOTP est retiré du presse-papiers après un court délai seulement si le presse-papiers contient toujours ce code.
 - Ne loggue jamais une URI `otpauth://`, car elle contient le secret.
 
 ## À améliorer ensuite
 
-- Verrouillage de l'app au démarrage
-- Touch ID / LocalAuthentication
 - Export/import chiffré
 - App de barre de menu
 - Recherche plus avancée
 - Icônes par service
-- Tests unitaires avec les vecteurs RFC 6238
 
 ## Structure
 
@@ -62,14 +64,19 @@ Sources/LocalAuthenticator/
     OTPAccount.swift
     OTPAlgorithm.swift
   Services/
+    AppUnlockState.swift
+    AccountValidator.swift
     AccountStore.swift
     Base32.swift
+    ClipboardCodeCopier.swift
     KeychainStore.swift
+    LaunchAuthenticator.swift
     OTPAuthParser.swift
     TOTPGenerator.swift
   Views/
     AccountRowView.swift
     AddAccountView.swift
     ContentView.swift
+    LaunchAuthenticationView.swift
     QRScannerView.swift
 ```

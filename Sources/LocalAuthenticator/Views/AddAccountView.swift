@@ -13,6 +13,7 @@ struct AddAccountView: View {
     @State private var period = 30
     @State private var localError: String?
     @State private var didAttemptManualAdd = false
+    @State private var isSecretVisible = false
     @State private var scannerResetID = UUID()
 
     enum AddMode: String, CaseIterable, Identifiable {
@@ -109,8 +110,23 @@ struct AddAccountView: View {
                 }
 
                 LabeledContent("Clé Base32") {
-                    TextField("JBSWY3DPEHPK3PXP", text: $secretBase32)
+                    HStack(spacing: 8) {
+                        Group {
+                            if isSecretVisible {
+                                TextField("JBSWY3DPEHPK3PXP", text: $secretBase32)
+                            } else {
+                                SecureField("JBSWY3DPEHPK3PXP", text: $secretBase32)
+                            }
+                        }
                         .textFieldStyle(.roundedBorder)
+
+                        Button {
+                            isSecretVisible.toggle()
+                        } label: {
+                            Image(systemName: isSecretVisible ? "eye.slash" : "eye")
+                        }
+                        .help(isSecretVisible ? "Masquer la clé" : "Afficher la clé")
+                    }
                 }
 
                 LabeledContent("Algorithme") {

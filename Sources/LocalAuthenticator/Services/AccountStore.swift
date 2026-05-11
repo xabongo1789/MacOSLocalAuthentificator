@@ -1,30 +1,62 @@
 import Foundation
 import Combine
 
+protocol AccountSecureStoring {
+    func save(_ account: OTPAccount) throws
+    func read(id: UUID) throws -> OTPAccount
+    func migrateToCurrentProtection(_ account: OTPAccount) throws
+    func delete(id: UUID) throws
+}
+
+protocol AccountIDStoring: AnyObject {
+    func stringArray(forKey defaultName: String) -> [String]?
+    func set(_ value: Any?, forKey defaultName: String)
+}
+
+extension UserDefaults: AccountIDStoring {}
+
 @MainActor
 final class AccountStore: ObservableObject {
     @Published private(set) var accounts: [OTPAccount] = []
     @Published var lastError: String?
 
-    private let keychain = KeychainStore()
-    private let userDefaults = UserDefaults.standard
+    private let keychain: any AccountSecureStoring
+    private let userDefaults: any AccountIDStoring
     private let accountIDsKey = "LocalAuthenticator.accountIDs"
 
-    init() {
+    init(
+        keychain: any AccountSecureStoring = KeychainStore(),
+        userDefaults: any AccountIDStoring = UserDefaults.standard
+    ) {
+        self.keychain = keychain
+        self.userDefaults = userDefaults
+
         load()
     }
 
     func load() {
         let ids = storedIDs()
         var loadedAccounts: [OTPAccount] = []
-        var validIDs: [UUID] = []
+        var retainedIDs: [UUID] = []
+        lastError = nil
 
         for id in ids {
             do {
                 let account = try keychain.read(id: id)
                 loadedAccounts.append(account)
-                validIDs.append(id)
+                retainedIDs.append(id)
+
+                do {
+                    try keychain.migrateToCurrentProtection(account)
+                } catch {
+                    lastError = error.localizedDescription
+                }
             } catch {
+                guard !isMissingKeychainItem(error) else {
+                    continue
+                }
+
+                retainedIDs.append(id)
                 lastError = error.localizedDescription
             }
         }
@@ -36,7 +68,9 @@ final class AccountStore: ObservableObject {
             return lhs.issuer.localizedCaseInsensitiveCompare(rhs.issuer) == .orderedAscending
         }
 
-        saveIDs(validIDs)
+        if retainedIDs != ids {
+            saveIDs(retainedIDs)
+        }
     }
 
     func add(_ account: OTPAccount) {
@@ -74,6 +108,11 @@ final class AccountStore: ObservableObject {
         }
     }
 
+    func clear() {
+        accounts = []
+        lastError = nil
+    }
+
     private func storedIDs() -> [UUID] {
         let strings = userDefaults.stringArray(forKey: accountIDsKey) ?? []
         return strings.compactMap(UUID.init(uuidString:))
@@ -81,5 +120,13 @@ final class AccountStore: ObservableObject {
 
     private func saveIDs(_ ids: [UUID]) {
         userDefaults.set(ids.map(\.uuidString), forKey: accountIDsKey)
+    }
+
+    private func isMissingKeychainItem(_ error: Error) -> Bool {
+        guard case KeychainStoreError.readFailed(let status) = error else {
+            return false
+        }
+
+        return status == errSecItemNotFound
     }
 }

@@ -293,8 +293,7 @@ private struct AccountDetailView: View {
     }
 
     private func copyCode() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(code, forType: .string)
+        ClipboardCodeCopier.copy(code)
         copied = true
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {

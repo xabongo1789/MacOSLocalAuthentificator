@@ -2,7 +2,7 @@ import Foundation
 import LocalAuthentication
 
 struct LaunchAuthenticator {
-    func authenticate() async throws {
+    func authenticate() async throws -> LAContext {
         let context = LAContext()
         context.localizedCancelTitle = "Annuler"
         context.localizedFallbackTitle = "Utiliser le mot de passe"
@@ -21,6 +21,8 @@ struct LaunchAuthenticator {
             guard isAuthenticated else {
                 throw LaunchAuthenticationError.failed("Authentification refusée.")
             }
+
+            return context
         } catch {
             throw LaunchAuthenticationError.failed(Self.message(for: error))
         }

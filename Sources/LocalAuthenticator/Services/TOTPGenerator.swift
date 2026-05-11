@@ -4,6 +4,7 @@ import CryptoKit
 enum TOTPError: Error, LocalizedError {
     case unsupportedDigits
     case invalidPeriod
+    case invalidDate
 
     var errorDescription: String? {
         switch self {
@@ -11,6 +12,8 @@ enum TOTPError: Error, LocalizedError {
             return "Le nombre de chiffres doit être compris entre 6 et 8."
         case .invalidPeriod:
             return "La période doit être supérieure à 0."
+        case .invalidDate:
+            return "La date TOTP doit être postérieure au 1er janvier 1970."
         }
     }
 }
@@ -32,7 +35,12 @@ final class TOTPGenerator {
         }
 
         let keyData = try Base32.decode(secretBase32)
-        let counter = UInt64(date.timeIntervalSince1970 / Double(period))
+        let counterValue = date.timeIntervalSince1970 / Double(period)
+        guard counterValue.isFinite, counterValue >= 0, counterValue <= Double(UInt64.max) else {
+            throw TOTPError.invalidDate
+        }
+
+        let counter = UInt64(counterValue)
         var counterBigEndian = counter.bigEndian
         let counterData = withUnsafeBytes(of: &counterBigEndian) { Data($0) }
         let key = SymmetricKey(data: keyData)

@@ -30,6 +30,22 @@ final class TOTPGeneratorTests: XCTestCase {
         )
     }
 
+    func testRejectsDatesBeforeUnixEpoch() {
+        XCTAssertThrowsError(
+            try TOTPGenerator.generate(
+                secretBase32: sha1Secret,
+                date: Date(timeIntervalSince1970: -1),
+                period: 30,
+                digits: 8,
+                algorithm: .sha1
+            )
+        ) { error in
+            guard case TOTPError.invalidDate = error else {
+                return XCTFail("Expected invalidDate, got \(error)")
+            }
+        }
+    }
+
     private func assertVectors(
         secret: String,
         algorithm: OTPAlgorithm,
